@@ -1,0 +1,273 @@
+#!/usr/bin/env ruby
+
+## An executable clone of the Unix 'ls' command, with the most commonly used options.  Written purely in Ruby but meant to be run from the CLI without the 'ruby' command. This was an exercise from Practicing Ruby and Elm City Craftworks <https://github.com/elm-city-craftworks/course-001>. It works but it still needs some heavy refactoring, i.e. I need to separate responsibilities into classes.
+
+##If Ruby is installed on your maching you can insert this program in your PATH, OR copy it to your working directory and prepend the file name with './', for example: $ ./ruby-ls
+
+require 'optparse'
+
+begin # Need for error-handling.  See rescue and abort at end of script.
+
+args = ARGV
+params = {}
+parser = OptionParser.new 
+
+parser.on("-l") { params[:long_format] = true }
+parser.on("-a") { params[:all_entries] = true }
+
+files = parser.parse(args) # 4 Dec changed ARGS to args
+
+if params[:long_format] && params[:all_entries] && files == [] # ruby-ls -a -l details all files
+	file_list = Dir.entries(Dir.getwd)
+	total_blocks = 0
+	file_list.each {|file| total_blocks += File.new(file).stat.blocks}
+	puts "total #{total_blocks}"
+	file_list.each do |file|
+		fstat = File.new(file).stat
+  	p_bits = sprintf("%b", fstat.mode)[-9..-1].split(//)
+  	p_octets = p_bits[0..2], p_bits[3..5], p_bits[6..8]
+  	p_octets.map do |octet|
+  		octet[0] == "1" ? octet[0] = "r" : octet[0] = "-"
+  		octet[1] == "1" ? octet[1] = "w" : octet[1] = "-"
+  		octet[2] == "1" ? octet[2] = "x" : octet[2] = "-"
+  	end
+  	puts "#{File.directory?(file) ? "d" : "-"}#{p_octets.flatten.join("")}  #{fstat.nlink} SamShiffman  staff#{fstat.size.to_s.rjust(5)} #{fstat.mtime.strftime("%b %_d %H:%M")} #{file}"
+	end
+elsif params[:long_format] && files == [] # ruby-ls -l details all files except ".", "..", ".*"
+	file_list = Dir.entries(Dir.getwd).select {|f| f !~ /^[.]/ }
+	total_blocks = 0
+	file_list.each {|file| total_blocks += File.new(file).stat.blocks}
+	puts "total #{total_blocks}"
+	file_list.each do |file|
+		fstat = File.new(file).stat
+  	p_bits = sprintf("%b", fstat.mode)[-9..-1].split(//)
+  	p_octets = p_bits[0..2], p_bits[3..5], p_bits[6..8]
+  	p_octets.map do |octet|
+    	octet[0] == "1" ? octet[0] = "r" : octet[0] = "-"
+    	octet[1] == "1" ? octet[1] = "w" : octet[1] = "-"
+    	octet[2] == "1" ? octet[2] = "x" : octet[2] = "-"
+  	end
+  	puts "#{File.directory?(file) ? "d" : "-"}#{p_octets.flatten.join("")}  #{fstat.nlink} SamShiffman  staff#{fstat.size.to_s.rjust(5)} #{fstat.mtime.strftime("%b %_d %H:%M")} #{file}"
+	end
+elsif params[:long_format] # ruby-ls -l <fileglob> detailed output of files with format fileglob
+	file_list = Dir.glob(files)
+	file_list.each do |file|
+		# File.basename(filename)
+		# File.dirname(<filename>)
+		# Dir.for_each(<dirname>) {&block}
+		fstat = File.new(file).stat
+  	p_bits = sprintf("%b", fstat.mode)[-9..-1].split(//)
+  	p_octets = p_bits[0..2], p_bits[3..5], p_bits[6..8]
+  	p_octets.map do |octet|
+    	octet[0] == "1" ? octet[0] = "r" : octet[0] = "-"
+    	octet[1] == "1" ? octet[1] = "w" : octet[1] = "-"
+    	octet[2] == "1" ? octet[2] = "x" : octet[2] = "-"
+  	end
+  	puts "#{File.directory?(file) ? "d" : "-"}#{p_octets.flatten.join("")}  #{fstat.nlink} SamShiffman  staff#{fstat.size.to_s.rjust(4)} #{fstat.mtime.strftime("%b %_d %H:%M")} #{file}"
+	end
+elsif params[:all_entries] # ruby-ls -a => simple list all files incl ".", ".."
+	Dir.entries(Dir.getwd).each {|f| puts f }
+elsif files == [] # ruby-ls => simple list all files except ".", "..", ".*"
+	Dir.entries(Dir.getwd).select {|f| f !~ /^[.]/ }.each {|f| puts f }
+elsif files[0] !~ /\// # ruby-ls <dirname> list all files in dirname except ".", "..", ".*"
+	Dir.entries(args[0]).select {|f| f !~ /^[.]/ }.each {|f| puts f }
+else # ruby-ls <fileglob> list all files of filename format fileglob
+	Dir.glob(files).select {|f| f !~ /^[.]/ }.each {|f| puts f }
+end
+rescue Errno::ENOENT => err
+	abort "ls: #{files[0]}: No such file or directory"
+rescue OptionParser::InvalidOption => err
+  abort "ls: illegal option -- #{args[0][1]}\nusage: ls [-ABCFGHLOPRSTUWabcdefghiklmnopqrstuwx1] [file ...]"
+end
+=begin
+
+# 22:41:26 Tue Dec 02 part1 $ ruby ls_tests.rb 
+# No arguments OK.
+# Dir listing OK.
+# File glob OK.
+# Detailed output OK.
+# You passed the tests, yay!
+
+# ...and now for the ruby-ls -a test:
+
+11:08:16 Thu Dec 04 part1 $ ruby ls_tests.rb 
+No arguments OK.
+Dir listing OK.
+File glob OK.
+Detailed output OK.
+Hidden files OK.
+You passed the tests, yay!
+
+# ...and now for the ruby-ls -a -l test:
+
+12:02:08 Thu Dec 04 part1 $ ruby ls_tests.rb
+No arguments OK.
+Dir listing OK.
+File glob OK.
+Detailed output OK.
+Hidden files OK.
+Hidden files with detailed output failed: Outputs do not match.
+
+# stdout does not match due to date format "Dec 04" vs "Dec  4" => changed "%d" to "%_d" in strftime
+
+12:58:18 Thu Dec 04 part1 $ ruby ls_tests.rb
+No arguments OK.
+Dir listing OK.
+File glob OK.
+Detailed output OK.
+Hidden files OK.
+Hidden files with detailed output OK.
+You passed the tests, yay!
+
+# ...and now for the -l foo/*.txt "File glob with detailed output" test:
+
+13:55:05 Thu Dec 04 part1 $ ruby ls_tests.rb 
+No arguments OK.
+Dir listing OK.
+File glob OK.
+Detailed output OK.
+Hidden files OK.
+Hidden files with detailed output OK.
+File glob with detailed output OK.
+You passed the tests, yay!
+
+# ...and now for the missingdir test:
+
+22:27:34 Thu Dec 04 part1 $ ruby ls_tests.rb 
+No arguments OK.
+Dir listing OK.
+File glob OK.
+Detailed output OK.
+Hidden files OK.
+Hidden files with detailed output OK.
+File glob with detailed output OK.
+Invalid directory OK.
+You passed the tests, yay!
+
+# ...and finally, the "Invalid flag" test:
+
+22:46:52 Thu Dec 04 part1 $ ruby ls_tests.rb 
+No arguments OK.
+Dir listing OK.
+File glob OK.
+Detailed output OK.
+Hidden files OK.
+Hidden files with detailed output OK.
+File glob with detailed output OK.
+Invalid directory OK.
+Invalid flag OK.
+You passed the tests, yay!
+
+=end
+
+=begin
+From info ls: for each directory whose contents are displayed, the
+     total number of 512-byte blocks used by the files in the directory is
+     displayed on a line by itself, immediately before the information for the
+     files in the directory.  
+Add up fstat.blocks first before iterating over all the other file attributes.
+
+# $ ruby-ls -l
+# =>#<File::Stat dev=0x1000001, ino=9650858, mode=040755, nlink=7, uid=501, gid=20, rdev=0x0, size=238, blksize=4096, blocks=0, atime=2014-11-28 18:54:33 -0800, mtime=2014-11-24 23:57:48 -0800, ctime=2014-11-24 23:57:48 -0800>
+#<File::Stat dev=0x1000001, ino=9650864, mode=0100755, nlink=1, uid=501, gid=20, rdev=0x0, size=39, blksize=4096, blocks=8, atime=2014-11-24 23:57:48 -0800, mtime=2014-11-24 23:57:48 -0800, ctime=2014-11-24 23:57:48 -0800>
+#<File::Stat dev=0x1000001, ino=9650865, mode=0100644, nlink=1, uid=501, gid=20, rdev=0x0, size=13, blksize=4096, blocks=8, atime=2014-11-24 23:57:48 -0800, mtime=2014-11-24 23:57:48 -0800, ctime=2014-11-24 23:57:48 -0800>
+#<File::Stat dev=0x1000001, ino=9651092, mode=0100644, nlink=1, uid=501, gid=20, rdev=0x0, size=2092, blksize=4096, blocks=8, atime=2014-11-28 19:28:16 -0800, mtime=2014-11-25 00:04:22 -0800, ctime=2014-11-25 00:04:22 -0800>
+
+# $ ls -l
+# => drwxr-xr-x  7 SamShiffman  staff   238 Nov 24 23:57 foo
+# => -rwxr-xr-x  1 SamShiffman  staff    39 Nov 24 23:57 hello.sh
+# => -rw-r--r--  1 SamShiffman  staff    13 Nov 24 23:57 hello.txt
+# => -rw-r--r--@ 1 SamShiffman  staff  2092 Nov 25 00:04 ls_command_options.txt
+
+The value of "mode" in the File::Stat object is an octal number, but File.stat.mode (or File::Stat.mode) converts it to an Integer (base 10).  Tried to convert it back to octal then take rightmost 3 digits and convert them to symbolic notation found in the Unix ls -l command output. Add leading "d" or "-" to output depending on whether file is a directory.
+
+This turned out to be too roundabout.  Better to convert integer straight to binary then convert permission bits to symbolic notation. "@" at end of symbolic notation indicates extended file attributes but don't need to parse it to pass tests because it's only associated with the "ls_command_options.txt" file that I added for reference:
+
+File.new(foo).stat.mode is 16877
+File.new(hello.sh).stat.mode is 33261
+File.new(hello.txt).stat.mode is 33188
+File.new(ls_command_options.txt).stat.mode is 33188
+
+file_list.each do |file|
+  p_bits = sprintf("%b", File.new(file).stat.mode)[-9..-1].split(//)
+  p_octets = p_bits[0..2], p_bits[3..5], p_bits[6..8]
+  p_octets.map do |octet|
+    octet[0] == "1" ? octet[0] = "r" : octet[0] = "-"
+    octet[1] == "1" ? octet[1] = "w" : octet[1] = "-"
+    octet[2] == "1" ? octet[2] = "x" : octet[2] = "-"
+  end
+	puts (File.directory?(file) ? "d" : "-") + p_octets.flatten.join("") 
+end
+
+# => drwxr-xr-x
+# => -rwxr-xr-x
+# => -rw-r--r--
+# => -rw-r--r--
+
+# Can refactor to:
+fstat = File.new(file).stat
+p_bits = sprintf("%b", fstat.mode)[9..-1].split(//)
+...rest follows as above
+
+# Next at 11th space: 
+fstat.nlink
+
+file_list.each do |file|
+  fstat = File.new(file).stat
+  p_bits = sprintf("%b", fstat.mode)[9..-1].split(//)
+  p_octets = p_bits[0..2], p_bits[3..5], p_bits[6..8]
+  p_octets.map do |octet|
+    octet[0] == "1" ? octet[0] = "r" : octet[0] = "-"
+    octet[1] == "1" ? octet[1] = "w" : octet[1] = "-"
+    octet[2] == "1" ? octet[2] = "x" : octet[2] = "-"
+  end
+	puts "#{File.directory?(file) ? "d" : "-"}#{p_octets.flatten.join("")}  #{fstat.nlink}"
+end
+
+# => drw-r--r--  7
+# => -rw-r--r--  1
+# => -rw-r--r--  1
+# => -rw-r--r--  1
+
+# uid and gid are the same for all test files so " SamShiffman staff  "
+puts "#{File.directory?(file) ? "d" : "-"}#{p_octets.flatten.join("")}  #{fstat.nlink} SamShiffman  staff#{fstat.size.to_s.rjust(5)}"
+# time in ls -l is time of last file modification, mtime:
+fstat.mtime.strftime("%b %d %H:%M")
+puts "#{fstat.mtime.strftime("%b %d %H:%M")} #{file}"
+
+=end
+
+
+# $ ruby-ls
+# => foo
+# => hello.sh
+# => hello.txt
+# => ls_command_options.txt
+# SamShiffman$ ruby-ls foo
+# => apple.md
+# => banana.md
+# => bar.txt
+# => baz.txt
+# => quux.txt
+# SamShiffman$ ruby-ls foo/*.txt
+# => foo/bar.txt
+# => foo/baz.txt
+# => foo/quux.txt
+
+
+=begin
+
+if files == []
+	Dir.entries(Dir.getwd).select {|f| f !~ /^[.]/ }.each {|f| puts f }
+elsif files[0] !~ /\//
+	Dir.entries(args[0]).select {|f| f !~ /^[.]/ }.each {|f| puts f }
+else
+	Dir.glob(files).select {|f| f !~ /^[.]/ }.each {|f| puts f }
+end
+
+# => passes "No arguments" base test
+# => passes "foo" test.
+# => passes "File glob: foo/*.txt" test too!
+# now what about "Detailed output" test?
+
+=end
